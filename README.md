@@ -24,6 +24,8 @@ Useful resources I didn't know about before.
 - Started mapping out some of the vocabulary and concepts of computer vision
 - Set up a Jupyter notebook for experimenting with Python computer vision stuff
   in
+- Started working through PCV chapter 1 using a notebook, but didn't get super
+  far
 
 
 ### The Chosen Textbooks
@@ -125,3 +127,21 @@ other nifty libs likely worth looking at for scientific / numeric Pythoning.
 And another half a gig of storage gone for the installer. Oh well!
 
 Installs all the binaries under ~/anaconda/bin/. Can add to path, or not.
+
+Running it from the directory in its own tmux window. Had to tweak
+RequestPolicy and NoScript to let its JS run, but then it worked fine. Looks
+like I can manage the Conda packages installed via Jupyter, too - nifty!
+
+The notebook file format is JSON. Handy. The .ipynb_checkpoints folder looks to
+contain old versions of the notebooks, presumably for undo support. All just plaintext, which is nice.
+
+Similarly, Jupyter writes some stuff to ~/Library/AppSupport/Jupyter describing
+where it's running and with what state (local directory), as well as a private
+client cookie (base64, looks like a certificate or privkey).
+
+Got confused for a bit - wrote some code depending on a change I'd made (but
+not yet run!) in an earlier cell, and then got an error about that new name not
+showing up. **Need to manually kick cells to re-evaluate - they aren't live.**
+
+Run All is your friend - which probably suggests I want to break out one
+notebook per chapter!
