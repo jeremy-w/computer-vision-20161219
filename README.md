@@ -14,6 +14,11 @@ Jargon encountered.
 ## Resources
 Useful resources I didn't know about before.
 
+- [Anaconda package docs](https://docs.continuum.io/anaconda/pkg-docs)
+- [NumPy Reference](https://numpy.readthedocs.io/en/latest/reference/index.html)
+    - Basically its own little world. The F2Py docs' existence is pretty
+      telling, I think!
+- [Matplotlib Docs](http://matplotlib.org/contents.html)
 
 
 ## 2016-12-19 (Monday)
@@ -145,3 +150,38 @@ showing up. **Need to manually kick cells to re-evaluate - they aren't live.**
 
 Run All is your friend - which probably suggests I want to break out one
 notebook per chapter!
+
+
+
+## 2016-12-20 (Tuesday)
+- Worked through histogram equalization and visualized each step to understand
+  the effect.
+    - Confused by why result not flat. Turns out the issue is discretization.
+
+- Finished reading chapter 1 of PCV
+    - Didn't work the exercises yet, though.
+
+- Found an interesting bit of history about one of the standard images used
+  with image compression and other image-processing work, kinda like the
+  field's version of the Utah teapot, the Lena image
+    - https://www.cs.cmu.edu/~chuck/lennapg/lenna.shtml
+
+
+### Histogram Discretization
+Why is it not flat? I'm not the first person to ask that.
+
+https://www.quora.com/Why-is-the-histogram-of-an-image-not-flat-after-applying-histogram-equalization
+
+> In the continuous domain (used during the conceptual discussion of the
+> process in most books), there is an infinite number of values in any
+> interval.
+>
+> In reality (i.e., when working with digital images), the histogram is
+> discrete which means there is a fixed number of values in a range. When this
+> range is stretched, the number of values in it is maintained. The discrete
+> equalization process merely remaps one intensity value to another; it does
+> not redistribute the intensity values. This means pixels which have equal
+> intensities will still have equal intensities after the process.
+> (Girish Mallya, 19 Feb 2016)
+
+http://www.math.uci.edu/icamp/courses/math77c/demos/hist_eq.pdf
