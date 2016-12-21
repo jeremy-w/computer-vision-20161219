@@ -185,3 +185,147 @@ https://www.quora.com/Why-is-the-histogram-of-an-image-not-flat-after-applying-h
 > (Girish Mallya, 19 Feb 2016)
 
 http://www.math.uci.edu/icamp/courses/math77c/demos/hist_eq.pdf
+
+
+
+## 2016-12-21 (Wednesday)
+- Looked a bit more into convolution.
+    - http://www.songho.ca/dsp/convolution/convolution.html
+      - Notion of separable convolution looks useful for compactly noting many
+        convolution matrices used in image processing. Also explains the
+        frequent symmetry encountered, I think - speed hack!
+    - https://en.wikipedia.org/wiki/Convolution
+
+- Switched to skimming text after determining that the algorithmic details are
+  not terribly portable (you tend to use optimized impls wherever already
+  available), and it would be easy to spend a ton of time fumbling around with
+  matrices (because everything is at arm's length - it's matrices all the way
+  down).
+
+- Skimmed chapter 2, Local Image Descriptors.
+
+- Skimmed chapter 3, Image to Image Mappings.
+
+- Skimmed chapter 4, Camera Models and Augmented Reality.
+    - Will have to write notes tomorrow.
+
+- TODO: Skimmed chapter 5, Multiple View Geometry.
+    - Brief flip-through: Lets us drop need for planar object matching to be
+      able to estimate camera position.
+
+
+### Chapter 2: Local Image Descriptors
+We often want to find "interesting" points/regions in an image. For this, we
+use a feature detector. Examples are the Harris corner detector and the
+Scale-Invariant Feature Transform (SIFT).
+
+We also often want to _match_ features across images by finding corresponding
+features. This gives us a basic building block towards answering questions
+like:
+
+- Which of these images were taken from the same point?
+- Which of these images are the same image?
+- How similar are these two images?
+- Are these pictures of the same thing?
+
+This matching is done by comparing _feature descriptors_ which capture
+information about a feature. Generally a feature descriptor is paired with
+a feature comparison. Examples:
+
+- Gray levels in an image patch around the interest point, compared using normalized cross-correlation
+    - The normalization cuts out the effects of image brightness.
+- Difference of Gaussians (blurs and diffs) for position and scale combined
+  with image gradient for rotation, compared using 8-bin histograms of image
+  gradient orientations, both across the whole region and across 4x4
+  subregions, all concatenated together
+    - This fanciness comes from SIFT. Clever, eh?
+
+As a quick "toss out the bad matches" approach, you can do a *symmetric match*:
+compare from image A to B and also compare backwards from B to A, then only
+keep the matches that agree when matching in both directions.
+
+End of chapter teases we can do a better job of more robustly matching images
+by using ideas developed in the next couple chapters, Image-to-Image Mappings
+and Camera Models. Presumably, you can then assess whether the image *in toto*
+matches, bearing in mind how cameras work.
+
+
+### Chapter 3: Image to Image Mappings
+How do we transform one image relative to another?
+How do we compute a specific transformation?
+
+#### Homographies
+This chapter considers _homographies_ between planes. It uses *homogeneous
+coordinates* to represent image samples, and matrices to represent
+transformations.
+
+##### Aside: Homogeneous Coordinates
+Tacking on a homogeneous coordinate to each sample enables representing
+projective transforms, not just affine (rotate, scale/reflect, and translate)
+transforms, as a single matrix. But it also means that our "points" become
+scale-independent. To allow talking about a single point again, we often
+normalize a homogeneous point so that the perspective value *w* becomes 1.
+
+#### How We Transform
+These transformations support warping one image next to/over/on top of another.
+
+But what transformation should we use? And how do we build that transformation
+matrix, anyway?
+
+#### Corresponding Points Determine an Homography
+A projection matrix has eight degrees of freedom. So, we can specify one by
+picking out four corresponding points in both images, and then computing the
+transformation that will align those points.
+
+(An affine matrix has six degrees of freedom, so we need only pick three
+points. This is handy combined with a triangulation of feature points and
+piecewise affine warping, AKA "paint it with a triangle mesh". Graphics cards
+eat that stuff up.)
+
+#### Points Are Chosen to Minimize Error
+So we can go from "these points should line up" to "here's your homography".
+But what points should line up?
+
+We have the start of an answer from the last chapter, on local image
+descriptors and feature detection. We can run SIFT to get a pile of
+probably matching points. But then we only get to pick four to determine the
+homography.
+
+One approach is to pick the four that minimize the error between all the other
+corresponding points. The chapter runs through two major approaches:
+
+- Direct Linear Transformation: Squish the from and to points into a matrix
+  in a certain way, run the matrix through the singular value decomposition,
+  then strip off and reshape the bottom row of V. (Too many reasoning steps are
+  elided to actually understand why this works.) But
+  [Wikipedia agrees this
+  works for least-squares](https://en.wikipedia.org/wiki/Singular_value_decomposition#Total_least_squares_minimization) -
+  "The solution turns out to be the right-singular vector of A corresponding to
+  the smallest singular value."
+    - SVD is neat - it's a kind of generalized eigendecomposition that is
+      apparently useful for all kinds of things. It spits out (U, S, V) = M,
+      where U is mxm, V is nxn, and S is mxn, and M is also mxn. S is diagonal,
+      and its diagonal values are the *singular values.* In a 2-D plane, it
+      ends up being a rotate, scale, rotate again kinda thing, with the
+      singular values corresponding to the major and minor axes of the ellipse.
+    - Worth remarking on in the code is how it conditions and normalizes the
+      inputs before running them through SVD, so as not to mess up its numeric
+      stability, then undoes that transform on the resulting homography.
+
+- Random Sample Consensus, more often called RANSAC: An iterative model fitting
+  method that relies on an error estimate to try to single out inliers from
+  outliers and fit against only the inliers. This is more robust to noise.
+    - This is what the chapter actually uses for working out how to warp
+      images together into a panorama.
+
+#### Applications: Image Registration, Panoramas
+One common use of homographies is _image registration_, which warps images to
+share a common coordinate frame. (The warp might be rigid, or not.) This is
+usually a data cleaning step prior to running some sort of statistical analysis
+or other machine learning method against a training set, and the chapter shows
+how much it improves the output of a simple mean image calculation as well as
+a principal component analysis with a series of face images, even though the
+starting images are pretty darn aligned to begin with.
+
+You can also use homographies to glue a sequence of images together
+in order to create a panorama.
