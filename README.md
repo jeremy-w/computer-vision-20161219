@@ -329,3 +329,174 @@ starting images are pretty darn aligned to begin with.
 
 You can also use homographies to glue a sequence of images together
 in order to create a panorama.
+
+
+
+## 2016-12-22 (Thursday)
+- Wrote up notes on chapter 4, Camera Models and Augmented Reality.
+
+- Read chapter 5, Multiple View Geometry.
+
+
+### Chapter 4: Camera Models and Augmented Reality
+Homographies handle 2-D mapping between images. But to deal with 3-D, we need
+to also model how that 3-D reality becomes a 2-D image. It turns out that
+a simple, pinhole (aka projective) camera model suffices for most needs, so
+that's what's covered here.
+
+Once we understand how to model projection, we can build on a homography
+between two images to also map between the cameras used to take the two images,
+which allows us to insert custom 3-D content into an image as if it had
+actually been there. That's right: Augmented reality!
+
+The augmented reality tactics in this chapter rely on starting with
+a homography, and specifically, they rely on having a rectangular patch that
+can be matched in both images, like a book cover or a window.
+
+
+#### Pinhole Camera
+Kind of funny - you can derive most of this from a clear sketch using similar
+triangles, I think. But the way it's sliced up here differs from OpenGL in
+meaningful ways.
+
+Here, the camera matrix is split up as a matrix product of a calibration matrix
+*K* and a horizontal stack of a rotation matrix *R* and a translation vector
+**t**: *P* = *K* [ *R* | **t** ].
+
+- P: projection matrix
+- K: calibration matrix
+- R: camera orientation
+- t: center of camera position
+- [ R | t ]: known as a whole as the camera's *pose*
+
+The calibration matrix is upper triangular with support for modeling:
+
+- skew of the sensor's pixel array (generally assumed to be 0)
+- focal length, the distance between the image plane and camera center,
+  apparently measured in pixels based on some later stuff
+    - this depends on the image resolution, orientation, and specific camera!
+    - the orientation only matters if you don't have square pixel elements,
+      otherwise, you get to ignore that bit
+- optical center aka principal point: where in the image the camera's optical
+  axis intersects the image plane, again in pixels
+    - this is generally the middle of the image, so the location just gets set
+      to half the image's width and height
+
+
+#### Working Backwards from P to K, R, t
+- RQ-factorize the first three columns of P to get K and R
+    - Confusing: The R in RQ is not the R in the KR associated with P,
+      but is a Right upper-triangular matrix rather than a Rotation matrix.
+- Get t by taking that last column *C* of *P* and undoing *K*'s effect on it,
+  **t** = *K*<sup>-1</sup> *C*
+- There's some cleverness here about forcing R to have positive determinant
+  to avoid flipping the coordinate access by introducing a transform that's
+  its own inverse and doing P = K T T [ R | t ].
+
+
+#### Working Backwards from P to the Camera's 3D Position
+We turn out to be hunting for a column vector **c** such that
+*P* **c** = **0**. Some pushing around gives us
+**c** = - *R<sup>T</sup>* **t**.
+
+
+#### Camera Calibration
+So, K. That depends on your camera. And you can measure it yourself!
+
+This goes back to that similar triangles idea. You can measure the real-world
+dimensions of a rectangle, measure the distance from your camera to the
+rectangle, center it and set your camera parallel to it, snap a photo, then
+measure the sides of the rectangle in the image in terms of pixels. Now you can
+estimate the focal lengths by taking the pixel:actual length ratio for each
+side and multiplying by the distance.
+
+You can then make your life easier by taking the mean of fx and fy on the
+assumption you messed something up and you really have square pixels in your
+sensor. Your calibration still depends on the camera and image resolution then,
+but not the camera's orientation any more.
+
+
+#### Pose Estimation
+Here's where we do that homography to camera position thing to let us
+map a 3D object from from-space into to-space.
+
+Knowing a homography H and calibration matrix K, we can gin up an arbitrary
+projection for our from-space assuming no rotation and a translation that
+sticks the camera above the marker (z = -1).
+
+H already handles transforming points at z = 0 for us to to-space.
+We can also apply it on top of our projection matrix to get us most of the way there - our new projection matrix P2 for to-space now handles z = 0.
+
+To handle z, we can grab the KR chunk of P2, undo K to get us most of the way
+to R2, then fix up its third column by setting it to a cross product of the
+first two columns.
+
+- NOTE: I didn't quite follow why the cross product, and the book doesn't
+  explain. My best guess is that it ensures we get something perpendicular to
+  the x and y rotation bits of R, and since R is unitary, we don't see any
+  stretching (unit distances, unit volumes).
+
+Anyway, we now have a projection for a camera in the to-space, and we can
+take a 3D model, run it through the projection, and have it pop out in to-space
+for rendering over our image. (We're still assuming everything in the image
+is at Z=0, so this isn't mega sophisticated, but it's enough to land a toy
+airplane on a book!)
+
+
+#### OpenGL Goop
+I'm not going to bother summarizing this. It's using older fixed-function pipeline OpenGL. Interesting bits:
+
+- The projection matrix is basically the calibration matrix.
+- OpenGL assumes the camera is at z=0, so the model-view transform needs to
+  stick stuff at z > 0 to be seen.
+- OBJ object files and MTL texture/material files are basically just text.
+  Funky.
+
+
+
+### My Reactions to Computer Vision So Far
+Ouch, mush brain. Much technical. Very matrices.
+
+What's amazing to me – and kind of obscured by the presentation here – is how
+intuitive a lot of this is, given a relatively simple model of a camera and
+scene.
+
+The details get bogged down in numeric concerns on the one hand and coping with
+imperfections and noise on the other. We prefer minimizing least-squares error
+using SVD to solve Ax = 0 rather than any sort of analytic approach, and we
+accept that we might not actually wrangle a 0 out. We have to worry about
+numerical precision and error accumulation – though the mitigations are rule of
+thumb added bookkeeping; we're not actually bounding the error term!
+
+Then there's a further complication as algorithms get more elaborate.
+We might layer steps and tune parameters - use a noisy disparity estimate and
+then tack on a denoise step afterwards, so we get sharp edges without a bunch
+of noise in each field.
+
+I also failed to understand how tied together the chapters are. This first
+sequence very much builds throughout. It looks like there's a Part 2 where we
+look at clustering and search and similar machine learningy things, and then
+a one-chapter Part 3 about OpenCV and applications to video frames.
+
+But I'm not sure where the image segmentation chapter sits relative to the
+rest, so, I could be wrong about that grouping!
+
+
+
+## 2016-12-23 (Friday)
+- TODO: Wrote up notes on Chapter 5, Multiple View Geometry.
+- TODO: Read chapter 6, Clustering Images.
+- TODO: Read chapter 7, Searching Images.
+- TODO: Read chapter 8, Classifying Image Content.
+
+
+### Chapter 5: Multiple View Geometry
+
+
+
+
+## 2016-12-24 (Saturday)
+I only did a half day on Thursday, so: let's finish this week out!
+
+- TODO: Read chapter 9, Image Segmentation.
+- TODO: Skimmed chapter 10, OpenCV.
