@@ -484,19 +484,370 @@ rest, so, I could be wrong about that grouping!
 
 
 ## 2016-12-23 (Friday)
-- TODO: Wrote up notes on Chapter 5, Multiple View Geometry.
-- TODO: Read chapter 6, Clustering Images.
-- TODO: Read chapter 7, Searching Images.
-- TODO: Read chapter 8, Classifying Image Content.
+- Wrote up notes on Chapter 5, Multiple View Geometry.
+- Read and wrote up notes on:
+    - Chapter 6, Clustering Images
+    - Chapter 7, Searching Images
+    - Chapter 8, Classifying Image Content
 
 
 ### Chapter 5: Multiple View Geometry
+Chapter 4's techniques let us work out where the camera was relative to an
+image, but we were still left treating it as just a 2D image, with only the
+camera (and anything we wanted to project into the scene à la AR) off in 3D.
+
+This chapter gives us the tools needed to unflatten the image and reconstruct
+features' locations in 3D.
+
+*Multiple view geometry* looks at what you can work out about cameras and
+features, given photos of the same scene from one or more cameras.
+
+The heart of it is relating two views of the same scene. Once we can do that,
+we can build up to working with more views of the same scene on the one hand,
+or look at a simpler case of two views with mostly known relationships, in the
+form of a stereo rig.
 
 
+#### Epipolar Geometry
+Epipolar geometry uses the epipolar constraint to derive the **fundamental
+matrix** relating the two cameras and the points viewed through them.
+
+From the fundamental matrix, we can recover the camera matrices.
+This can only be done up to projective transformation, which means that not
+even angles and such might be preserved.
+If we know the calibrations, though, we can achieve a metric reconstruction,
+which has correct distances and angles, though the scale remains unknown.
+
+If you plug a feature point from one image into the epipolar constraint,
+you get back the equation of a line, the *epipolar line*, corresponding to the
+chosen point. We know that any corresponding feature in the other image must be
+on this line, which we can use to simplify hunting for correspondences.
+
+All epipolar lines intersect in a point called the *epipole*, which is actually
+where the image plane intersects the line between the two cameras (and has
+a good chance of actually being outside the frame of the image!).
+
+We can compute the fundamental matrix F using the eight-point algorithm,
+which relies on eight point correspondences. (This uses a neat trick where
+we force F to be rank two by zeroing out the last singular value before
+putting it back together by undoing the SVD with our newly rank-two S.)
+
+We can plot epipolar lines once we have F.
+
+
+#### Cameras, 3D Structures, Oh Yes
+*Triangulation* uses known camera matrices and correspondences to compute
+the 3D position of the corresponding points.
+
+If you know the 3D position and correspondences but not the camera matrices,
+you can work backwards to get them. Running triangulation backwards like this
+is called _camera resectioning._
+
+If you know the fundamental matrix, you can work backwards to get the camera
+matrices. Ish. So, you actually just arbitrarily pick one to be unrotated and
+at the origin, and then you can find the other matrix relative to that.
+Ish, again - if you don't know a calibration, then any 3D reconstruction of
+points is accurate only up to a projective transform, so angles and distances
+aren't respected.
+
+That isn't terribly interesting, but the calibrated case is:
+we can get a metric reconstruction, which is accurate modulo a global scale
+factor that we generally don't care about. We can apply the inverse of the
+calibration matrix to all the image points to get calibration-normalized
+coordinates. The fundamental matrix relative to this basis is called the
+_essential matrix E_. Solving for camera matrices gives us four solutions,
+but only one actually has the scene in front of _both_ cameras, so it's easy
+to work out which one to pick. (In the messy IRL case, you pick whichever has
+the most points in front of both.)
+
+
+#### Multiple View Reconstruction: Structure from Motion
+The apparent motion between the two views lets you recover the 3D structure.
+Yay!
+
+- Calibrate your camera
+- Match feature points and normalize them
+- Use those to estimate the essential matrix
+    - RANSAC the 8-point algorithm
+- Use that to estimate the other camera's matrix
+- Triangulate inlier points
+    - Ditch any not in front of both cameras.
+
+There's some slop here. You can try to minimize it through "bundle adjustment",
+which, uh, is a thing. That we don't talk about here.
+
+Self-calibration: Also a thing. Depending on the info you have in the image
+(parallel lines? planes?) and assumptions you can make about the cameras,
+you can sometimes work out a calibration.
+
+As you can imagine, some folks have a calibration worked out for a lot of
+common cameras. And you can work backwards from EXIF data to get focal length.
+So there's a script extract_focal.pl that the Bundler SfM system from
+U Washington that puts that to work for you.
+
+
+#### Stereo Images and Stereo Reconstruction (AKA Dense Depth Reconstruction)
+This is a simpler case, with only horizontal displacement between images.
+We have _rectified_ images where all the rows line up vertically.
+This is what you get with binocular vision in robotics using a stereo rig.
+
+Given a stereo camera setup, you can warp images to a common plane so that
+epipolar line = image row. This is called _image rectification._ Handy.
+
+As you can imagine, it's pretty straightforward to calculate a point's depth
+once you have the corresponding points, the distance between the cameras'
+centers (aka the _baseline_), and the displacement in pixel coordinates between
+the two images. (It's just similar triangles! Again!) Z is to focal length as
+baseline is to horizontal displacement.
+
+If you know all the correspondences, you can plot out a depth map, or
+equivalently, a _disparity map_. A bigger disparity means a nearer 3D point;
+a lesser disparity means a further point. So you can shade 0 = black, max
+= white and get basically a "lit scene" depth map.
+
+The trick turns out to be finding those corresponding points automatically.
+One quick and easy approach is to do _plane sweeping_, where we basically just
+try every possible displacement for every possible point, and pick the one
+that "looks" best, by maximizing the normalized cross-correlation on an image
+patch around each pixel. Doing this using a uniform filter over the patch tends
+to give you a bit noisier but also richer result than using a Gaussian filter.
+
+This "so, uh, what do we _think_ the depth at this point is?" estimation
+problem is stereo reconstruction, aka dense depth reconstruction. (Unlike our
+usual "match the correspondences" with just a few features, here, we give
+_every_ point a corresponding point, which I presume is why it's _dense_
+depth.)
+
+NOTE: The epipolar geometry bit felt kinda rushed and all over the place.
+Partly because there's a lot of "if you have these things, you can get that
+other thing" for several different things, so they're all very related; partly
+because they didn't really walk through deriving the fundamental matrix that's
+at the very heart of this all!
+
+
+### Chapter 6: Clustering Images
+*This was a relief after the triangulation and camera resectioning chapter.
+Pretty straightforward, easy to visualize, and mostly fairly intuitive
+algorithms, aside from the spectral clustering bit at the end.*
+
+Clustering tries to group points together that belong together, in some sense.
+This is a pretty generally useful tool for generalizing classification learned
+from some training set. (This chapter is mostly setup for the next couple.)
+
+Principal component analysis comes in handy for dimensionality reduction.
+The chapter also uses multidimensional histograms to capture color content
+for grouping sunset images, with 8 bins for each color channel, as generated
+using [NumPy's `histogramdd`.](https://docs.scipy.org/doc/numpy/reference/generated/numpy.histogramdd.html)
+
+We get a first taste of image segmentation (carving up an image into
+meaningful components) by clustering pixels.
+
+Hierarchical clustering (AKA agglomerative clustering) is introduced as well.
+This builds a similarity tree by iteratively linking together a component with
+a not-yet-grouped image that's nearest to it. This can be very neatly
+visualized as a tree diagram.
+
+Spectral clustering takes a similarity/distance matrix of pairwise similarity
+scores (kinda like edge distances in a fully connected graph…), builds a
+new matrix (the Laplacian matrix), grabs its eigenvectors, and projects your
+data out onto that. This gives you dimensionality reduction (and vectors in the
+first place, if you didn't have vectors as your data input used to generate the
+similarity measure!) and lets you run k-means on that output.
+
+You can also do hierarchical k-means clustering, which can be a handy way to
+work with more features and classifier groups without getting bogged down in
+projecting ALL the things to ALL the clusters. (See p. 166, the last exercise
+in the Image Search chapter.)
+
+A neat trick for picking *k* is shown at the end of the chapter, where
+there are basically two groups but some junk images. Instead of doing k=2,
+which would lump the junk in with one or both classes, it does k=10, which
+leads to a bunch of singleton clusters, which it can then easily ignore
+as junk.
+
+
+#### K-Means Clustering
+K-means finds k centroids (means). Every data point gets assigned to its
+nearest centroid. The clustering algorithm is seeded with k initial centroids,
+then iterated till quiescence by assigning points and then updating the
+centroids to be the center of that new group of points.
+
+Ultimately, this tries to minimize the total within-class variance.
+Its ideal would be a bunch of data that is all stacked precisely on k points.
+
+This algorithm tends to be sensitive to the initial points, so it's normal
+to run it several times (say, 20) with different starting points, and then pick
+the final batch of centroids with the lowest total error.
+
+The clustering is in general sensitive to your choice of *k*. Having to pick
+that up front is probably its biggest drawback. But it's easy, it parallelizes,
+and it often works well without much tuning.
+
+##### Code: SciPy Clustering Library
+You can compute centroids using `scipy.cluster.vq.kmeans` and then label
+new data relative to those centroids using `scipy.cluster.vq.vq`.
+The "vq" bit stands for "vector quantization" - we're feeding it a vector,
+and it's spitting out an integer (a quantization). How's that for data
+compression?
+
+##### Images
+You could just feed in an array of all the image data as your feature vectors.
+But you can also do dimensional compression by running PCA, grabbing the first
+40 or 50 components, and then projecting out all your image data along those
+vectors. This turns your thousands of points (a 1024x1024 image has a lot of
+points! especially if you factor in RGB) into just 40 or 50.
+
+You can ["whiten"](https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.vq.whiten.html#scipy.cluster.vq.whiten)
+the data (normalize so each feature has unit variance),
+then run k-means over that.
+
+#### Principal Components Visualized
+You can pick a couple principle component vectors, then plot your data
+projected onto those vectors in 2D space. Fun!
+
+The book uses PIL's ImageDraw system for this, rather than MatPlotLib,
+presumably because it makes it easier to draw arbitrary lines and such?
+Or just easier to save out to a huge PDF?
+
+#### Hierarchical Clustering
+Iteratively builds a tree based on "distances" between points.
+Convert every point into a leaf node, then start linking the two nearest
+together.
+
+When we link nodes, we replace them with a synthetic node to represent that
+whole tree for the next round of the algo. We also track the height and spread
+(the distance between it and the thing we glommed onto it) at each node,
+so we can easily break the tree up into clusters later.
+
+Once we've got everything linked up, we can do a treewalk to spit out clusters
+as "everything in a tree whose overall distance is below (some threshold value
+you picked)". A good threshold can be, like, 30% of the total variation seen at
+the root of the tree. If you don't need to split it up into clusters, just
+looking at the similarity tree can be pretty handy, and you avoid the kinda
+arbitrary thresholding bit.
+
+Aside from the threshold bit, the algorithm can also be tweaked by using a
+different metric to measure distance between points, as well as varying how
+we decide which nodes to link together.
+
+"Average-link (or group average) clustering is a compromise
+between the sensitivity of complete-link clustering (which merges nodes to
+minimize diameter, or the max distance between everything in the node) to
+outliers and the tendency of single-link clustering (which merges nodes to
+minimize distance, or the min distance between points in the potentially merged
+node) to form long chains that do not correspond to the intuitive notion of
+clusters as compact, spherical objects."
+(http://nlp.stanford.edu/IR-book/completelink.html)
+
+
+## Chapter 7: Searching Images
+This applies text-mining techniques to image search ("content-based image
+retrieval") via "visual words".
+
+Visual words adapt the bag-of-words model used with text to visual features.
+Project your images out into features (they use SIFT), create a "vocabulary"
+(k-means centroids, say), project all the descriptors for each image onto that
+vocabulary to create a "word histogram" (present / not present for each
+vocabulary word, AKA "does this descriptor go in that cluster?"), and stash all
+that info. That's your index database.
+
+Now you can run the histogram process with a query image, yank all the images
+that contain the same "words", and sort them by which have the most words in
+common with your query image to dump out search results.
+
+You can get more clever, of course! After you get that candidate set,
+you can go and use RANSAC to compute a homography, and rank the images
+with the most inliers down to least. Unlike SIFT features, this takes
+where things show up in the image into account (geometry). Or factor in
+color info alongside SIFT features.
+
+Another approach to try to improve results is to discard the most common 10% or
+so of visual words as stop words, and then weight the histogram using tf-idf
+weighting (term frequency-inverse document frequency), which for a word in
+a given document, weights a word higher if it shows up proportionally more
+in that document (term frequency):
+
+> tf(word, document) = document.count(of: word) / sum(document.count(of: word) for word in document.words)
+>
+and higher still if it's unique to that document (inverse document frequency)
+
+> idf(word) = log(len(documents) / len(documents.containing(word)))
+
+Search speed starts to matter as you increase vocabulary or index set size.
+Maybe you only grab candidates for some of the words (the unique ones, per
+idf), or you switch to a sparse array representation for the word histograms,
+or you speed up clustering during indexing by using hierarchical k-means.
+
+What's neat is how visual this all is - you can actually visualize a
+visual word by grabbing a patch around every feature that projects out to it
+and then dumping out all those image patches.
+
+
+## Chapter 8: Classifying Image Content
+So, with clusters, we already have a notion of how to classify stuff,
+but this assumes we actually have training data with known labels
+and test data with known labels, and then tries to work out a good way to
+assign a label to test data so that we don't misclassify stuff.
+
+### Visualizing
+A convenient approach for trialing a clustering algorithm and visualizing how
+it labels stuff is to generate random 2d-points in two clusters to begin with,
+run the clustering algorithm across the data, and then plot the zero contour as
+well as right/wrong label info for each point.
+
+### Classifier: K-Nearest Neighbors
+An easy clustering approach is k-nearest neighbors. You have to pick
+k yourself, again, just as with k-means. Then, given a point to classify, you
+pick the k nearest points from your training data, and label that point with
+whichever class has a plurality (the most "votes") in that neighborhood.
+"You're mostly standing by the red team, so you're probably part of the red
+team, too."
+
+### Featurifying Images: Dense SIFT, AKA Histogram of Oriented Gradients
+Compute SIFT at each point on a mesh grid across an image. Concatenate all
+those into one long vector. Now you have your feature vector.
+
+Remember to resize your images to the same size, otherwise your feature vectors
+won't be the same size, and everything will break on you.
+
+You might also want to do PCA dimensionality reduction on those massive
+feature vectors before clustering.
+
+As before, the book shells out to a binary provided by VLFeat for SIFT,
+using `sift foo.pgm --output=foo.sift --read-frames=foo.frame` and maybe
+pitching in `--orientations` as well (otherwise everything just aims straight
+up at each point, rather than orienting per local gradient). The frame file
+is some sort of meshgrid of points written out using `%03.3f`.
+
+You can visualize how things get messed up via a *confusion matrix*
+which tells you how often something in class *i* got stuck in class *j*.
+Ideally, you get numbers on the diagonals and zeroes elsewhere (we always said
+an *i* was an *i*). This provides riches feedback about what your "spoilers"
+are than just a "you got 87% correctly classified" summary.
+
+### Classifier: Bayes
+Lot smaller model than KNN - KNN requires you to hold onto all your training
+data, while Bayes just reduces it all down to a mean and variance, and then
+those get to say how likely a point is relative to that Gaussian distribution,
+and the most likely one gets to label the point.
+
+
+### Classifier: Support Vector Machines (using libsvm)
+Normally these are just group A or group B. To do multi-class, you do K
+one-against-all classifiers, "this is group N or not" for each class.
+
+
+### Multi-Class Example: Sudoku OCR using libsvm
+Also touches on *image rectification* using a homography warp and detecting
+cells by finding lines in order to crop out the numbers for each cell so they
+can be recognized.
+
+This example is really cool. :)
 
 
 ## 2016-12-24 (Saturday)
 I only did a half day on Thursday, so: let's finish this week out!
+(Actually, did a very long day on Friday, so - maybe not. Darn.)
 
 - TODO: Read chapter 9, Image Segmentation.
 - TODO: Skimmed chapter 10, OpenCV.
