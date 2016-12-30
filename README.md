@@ -847,7 +847,10 @@ This example is really cool. :)
 
 ## 2016-12-24 (Saturday)
 I only did a half day on Thursday, so: let's finish this week out!
-(Actually, did a very long day on Friday, so - maybe not. Darn.)
 
-- TODO: Read chapter 9, Image Segmentation.
-- TODO: Skimmed chapter 10, OpenCV.
+- Read chapter 9, Image Segmentation.
+- Read chapter 10, OpenCV.
+
+I got these read, but I didn't have time to do a write-up.
+Hopefully I can snag a few hours a bit later and go through it.
+The image segmentation chapter in particular was quite fun.
