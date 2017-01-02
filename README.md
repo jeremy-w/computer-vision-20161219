@@ -5,9 +5,75 @@
 This repo is a dumping ground for notes taken during a week of studying computer vision. The initial charter for the week is the (private) [Unclass Proposal](https://docs.google.com/document/d/13MCtXiMF2NgKTjGpvNBzbgVnCuvsAP6-9niB_LAs9U0/).
 This file is primarily a daily log.
 
+## Contents
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-## Jargon
-Jargon encountered.
+
+- [Computer Vision](#computer-vision)
+  - [Contents](#contents)
+  - [Resources](#resources)
+  - [2016-12-19 (Monday)](#2016-12-19-monday)
+    - [The Chosen Textbooks](#the-chosen-textbooks)
+      - [OSA](#osa)
+      - [PCV](#pcv)
+      - [CCV](#ccv)
+    - [Mapping Out Concepts](#mapping-out-concepts)
+    - [Setting Up Jupyter](#setting-up-jupyter)
+  - [2016-12-20 (Tuesday)](#2016-12-20-tuesday)
+    - [Histogram Discretization](#histogram-discretization)
+  - [2016-12-21 (Wednesday)](#2016-12-21-wednesday)
+    - [Chapter 2: Local Image Descriptors](#chapter-2-local-image-descriptors)
+    - [Chapter 3: Image to Image Mappings](#chapter-3-image-to-image-mappings)
+      - [Homographies](#homographies)
+        - [Aside: Homogeneous Coordinates](#aside-homogeneous-coordinates)
+      - [How We Transform](#how-we-transform)
+      - [Corresponding Points Determine an Homography](#corresponding-points-determine-an-homography)
+      - [Points Are Chosen to Minimize Error](#points-are-chosen-to-minimize-error)
+      - [Applications: Image Registration, Panoramas](#applications-image-registration-panoramas)
+  - [2016-12-22 (Thursday)](#2016-12-22-thursday)
+    - [Chapter 4: Camera Models and Augmented Reality](#chapter-4-camera-models-and-augmented-reality)
+      - [Pinhole Camera](#pinhole-camera)
+      - [Working Backwards from P to K, R, t](#working-backwards-from-p-to-k-r-t)
+      - [Working Backwards from P to the Camera's 3D Position](#working-backwards-from-p-to-the-cameras-3d-position)
+      - [Camera Calibration](#camera-calibration)
+      - [Pose Estimation](#pose-estimation)
+      - [OpenGL Goop](#opengl-goop)
+    - [My Reactions to Computer Vision So Far](#my-reactions-to-computer-vision-so-far)
+  - [2016-12-23 (Friday)](#2016-12-23-friday)
+    - [Chapter 5: Multiple View Geometry](#chapter-5-multiple-view-geometry)
+      - [Epipolar Geometry](#epipolar-geometry)
+      - [Cameras, 3D Structures, Oh Yes](#cameras-3d-structures-oh-yes)
+      - [Multiple View Reconstruction: Structure from Motion](#multiple-view-reconstruction-structure-from-motion)
+      - [Stereo Images and Stereo Reconstruction (AKA Dense Depth Reconstruction)](#stereo-images-and-stereo-reconstruction-aka-dense-depth-reconstruction)
+    - [Chapter 6: Clustering Images](#chapter-6-clustering-images)
+      - [K-Means Clustering](#k-means-clustering)
+        - [Code: SciPy Clustering Library](#code-scipy-clustering-library)
+        - [Images](#images)
+      - [Principal Components Visualized](#principal-components-visualized)
+      - [Hierarchical Clustering](#hierarchical-clustering)
+  - [Chapter 7: Searching Images](#chapter-7-searching-images)
+  - [Chapter 8: Classifying Image Content](#chapter-8-classifying-image-content)
+    - [Visualizing](#visualizing)
+    - [Classifier: K-Nearest Neighbors](#classifier-k-nearest-neighbors)
+    - [Featurifying Images: Dense SIFT, AKA Histogram of Oriented Gradients](#featurifying-images-dense-sift-aka-histogram-of-oriented-gradients)
+    - [Classifier: Bayes](#classifier-bayes)
+    - [Classifier: Support Vector Machines (using libsvm)](#classifier-support-vector-machines-using-libsvm)
+    - [Multi-Class Example: Sudoku OCR using libsvm](#multi-class-example-sudoku-ocr-using-libsvm)
+  - [2016-12-24 (Saturday)](#2016-12-24-saturday)
+  - [2017-01-02 (Monday)](#2017-01-02-monday)
+    - [Chapter 9: Image Segmentation](#chapter-9-image-segmentation)
+      - [Graph Cuts](#graph-cuts)
+        - [User Input](#user-input)
+      - [Finding Normalized Cuts and Clustering](#finding-normalized-cuts-and-clustering)
+      - [Variational Methods](#variational-methods)
+    - [Chapter 10: OpenCV](#chapter-10-opencv)
+      - [Basics](#basics)
+      - [Tracking](#tracking)
+      - [Lucas-Kanade Tracking](#lucas-kanade-tracking)
+      - [Grab Bag](#grab-bag)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 
 
@@ -19,6 +85,7 @@ Useful resources I didn't know about before.
     - Basically its own little world. The F2Py docs' existence is pretty
       telling, I think!
 - [Matplotlib Docs](http://matplotlib.org/contents.html)
+- [Hypermedia Image Processing Reference](http://homepages.inf.ed.ac.uk/rbf/HIPR2/hipr_top.htm)
 
 
 ## 2016-12-19 (Monday)
