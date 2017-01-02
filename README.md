@@ -835,8 +835,8 @@ a given document, weights a word higher if it shows up proportionally more
 in that document (term frequency):
 
 > tf(word, document) = document.count(of: word) / sum(document.count(of: word) for word in document.words)
->
-and higher still if it's unique to that document (inverse document frequency)
+
+and higher still if it's unique to that document (inverse document frequency):
 
 > idf(word) = log(len(documents) / len(documents.containing(word)))
 
