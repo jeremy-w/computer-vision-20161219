@@ -845,6 +845,7 @@ can be recognized.
 This example is really cool. :)
 
 
+
 ## 2016-12-24 (Saturday)
 I only did a half day on Thursday, so: let's finish this week out!
 
@@ -854,3 +855,157 @@ I only did a half day on Thursday, so: let's finish this week out!
 I got these read, but I didn't have time to do a write-up.
 Hopefully I can snag a few hours a bit later and go through it.
 The image segmentation chapter in particular was quite fun.
+
+
+
+## 2017-01-02 (Monday)
+- Wrote up notes on chapter 9, Image Segmentation.
+- Wrote up notes on chapter 10, OpenCV.
+
+
+### Chapter 9: Image Segmentation
+Image segmentation is about carving up a single image into connected segments.
+The aim is to group together similar pixels and separate dissimilar pixels,
+with the idea that this represents objects or other meaningful distinctions in
+the image, like foreground vs background.
+
+#### Graph Cuts
+We can treat the pixels as vertices in a digraph, and connect each to its
+neighbor (either a 4-neighborhood, where we connect N-E-S-W, or 8-neighborhood,
+where we add in NE-SE-SW-NW). We can weight the edges based on "similarity"
+between pixels.
+
+Then we can introduce fake source and sink nodes and use a max-flow/min-cut
+algorithm like Edmonds–Karp to slice the graph into two components with minimal
+connection (edge weight) between the two.
+
+The source connects out to each pixel, and each pixel connects out to the sink.
+
+How to weight the edges from source to pixel and from pixel to sink?
+The book gives an example where two naïve Bayes classifiers are trained to
+recognize foreground and background pixels based on one foreground and one
+background region marked out by a human on the graph, then weights source
+edges by how likely they are to be in the foreground and sink by how likely
+in the background. The cut then ends up cutting foreground from background.
+
+We can label the pixels with which cut component they end up in, and then
+visualize that separation using a `contourf` plot.
+
+An interesting tidbit here is that, because they're using a pure Python
+graph algorithm kit, they have to resize the image to be a lot smaller so
+the library can cope with running the min-cut algorithm in a reasonable amount
+of time.
+
+The exercises point out that you might see better results using something
+other than concatenated RGB data for the pixels in the training regions
+as your Bayes feature vectors - say, intensity, or maybe just the red channel,
+or whatever. You could also detect foreground and background, retrain on
+those, and then run the algorithm again with the new classifiers - iterated
+graph cut segmentation. This "sharpens" the judgments made along the way,
+walking a step further along the path of what the first classifier called
+foreground vs background.
+
+##### User Input
+Notice how we trained the Bayes classifiers based on user input.
+That kinda surprised me - I figured this would be a hands-off algorithm -
+but it seems pretty common.
+
+For example, the
+[Grab Cut dataset provided by Microsoft Research](http://research.microsoft.com/en-us/um/cambridge/projects/visionimagevideoediting/segmentation/grabcut.htm)
+actually has training labels for background and foreground as both rectangular
+and lasso regions.
+
+The background for this assumption seems to be interactive image editing -
+think the Magic Wand tool (color-similarity selection) and Intelligent Scissors
+tool (contrast-based edge detection). Having an algorithm to pick out an
+object the user tells you is right about there-ish is useful!
+
+#### Finding Normalized Cuts and Clustering
+Simple graph cuts tend to pick out tiny regions, since they have fewer edges
+to cut, period.
+
+Normalizing the cut size by the association between each component and the
+rest of the graph pushes it to prefer bigger regions, so you're not axing
+every link that region has to the rest of the graph.
+
+This gives a discrete minimization problem that turns out to be NP-complete,
+but you can turn it into a real-valued minimization problem that can be
+efficiently solved - it becomes an eigenvalue problem analogous to spectral
+clustering.
+
+The weighting used connects every pixel to every other using a weight that's
+a product of factors based on pixel similarity and on pixel proximity.
+
+(Remember: Whenever you can assign a value to each-to-each similarity,
+you can employ spectral clustering!)
+
+To go back from the real-value domain to the image, the book uses
+*k*-means clustering on feature vectors made up of a stack of the first three
+eigenvectors of the real-valued solution approximated by SVD.
+
+An alternative approach would be to grab the second eigenvector and then
+threshold to get two components, and then recurse on each component to break
+it up further, if desired, till the min normalized cut exceeds a max value
+(there aren't any more "good" cuts to make).
+
+(For details, check out
+[Shi & Malik's "Normalized Cuts and Image Segmentation"](https://people.eecs.berkeley.edu/~malik/papers/SM-ncut.pdf)
+from Aug 2000.)
+
+Some more real-world notes:
+
+- The book again resizes the image down (to 50x50), this time to make SVD
+  practicable.
+- It resizes it down using bilinear interpolation, labels everything,
+  and then resizes the label image back up for comparison using
+  nearest-neighbor to avoid not-a-component-label values appearing in the
+  larger image due to interpolation.
+
+Note that this _is_ a hands-off approach, and it does better than simple
+thresholding or clustering because it takes pixel "neighborhoods" into account.
+(Though there are a couple tunables related to how much to weight proximity vs
+similarity for the edge weight calculation.)
+
+When I think of how pixel clustering has failed me in the past, I think of
+using Magic Wand on an image, and how it might just pick out the highlight or
+shadow on an object rather than the whole object, because it's dumb.
+
+Exercises suggest you could use image gradients over the eigenvectors to
+detect image contours of objects.
+
+#### Variational Methods
+*I really appreciated how the method used in this section is elegant, simple,
+and visualizes well.*
+
+An optimization problem over functions rather than values is called a
+*variational problem.* An algorithm to solve such a problem is a
+*variational method.*
+
+The Chan-Vese segmentation model assumes you can carve the image up into
+piecewise constant regions using curves. The "energy" of the segmentation to
+minimize is a sum of the curve length (to penalize wiggly boundaries) and the
+error relative to the constant value of the region.
+
+You can turn this into a nice discrete problem for graylevels that happens
+to look almost 100% like the ROF equation used for denoising! To restore the
+piecewise constant bit, we throw in thresholding.
+
+And now we have a quick and easy two-step process for image segmentation:
+
+- Apply ROF de-noising
+- Run the image through a threshold relative to the max image value
+
+In practice, they tune down the ROF tolerance threshold really low so that
+it runs long enough to split everything apart. This gives some really nice
+results really fast.
+
+The book only covers splitting into two components using this model, though;
+not sure how you'd extend to more, except maybe by playing with thresholds
+within components?
+
+This is also a hands-off approach, though tuning the threshold and iterations
+is probably kinda manual. To solve that, the exercises suggest running
+a linear search over the threshold value and then picking the segmentation
+with the lowest energy value. That should go fast, since the maybe lengthy
+denoising gets run once, and then we just play around with tuning a threshold,
+and the thresholded image is pretty fast to calculate.
