@@ -1187,5 +1187,5 @@ hand, especially when Python isn't available. If you have Python in hand,
 though, you probably want to give [SimpleCV](http://simplecv.org/) a look! It's
 like the higher-level "just pick the right algorithm for me already" version of
 OpenCV.
-Though [SimpleCV appears to have petered out in April 2015 based on GitHub](https://github.com/sightmachine/SimpleCV).
-[tpltnt's SimpleCV fork looks lively, though.](https://github.com/tpltnt/SimpleCV)*
+Though SimpleCV appears to have petered out in April 2015 based on [GitHub history](https://github.com/sightmachine/SimpleCV).
+[tpltnt's SimpleCV fork](https://github.com/tpltnt/SimpleCV) looks lively, though.*
