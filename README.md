@@ -1009,3 +1009,116 @@ a linear search over the threshold value and then picking the segmentation
 with the lowest energy value. That should go fast, since the maybe lengthy
 denoising gets run once, and then we just play around with tuning a threshold,
 and the thresholded image is pretty fast to calculate.
+
+
+### Chapter 10: OpenCV
+OpenCV is a BSD-3–licensed C++ library with a grab bag of functionality for
+working with still images and movies, extending even to cross-platform
+windowing and display. It's seen work by Intel, NVDIA, and AMD.
+
+It bakes in support for doing some things we've gone over doing manually,
+particularly object detection, segmentation, and stereo camera magic that
+goes beyond what we talked about so far. Oh, and more - that was based on
+the OpenCV 2.4 cheatsheet, but it's now in the 3.2 range and does even more!
+
+Most of this chapter is a tour of some of the bundled examples using the
+Python bindings to the C++ library.
+
+#### Basics
+- OpenCV likes BGR channel order by default. Use cvtColor to change
+  colorspaces, like to grayscale.
+- OpenCV can write out images (it figures out the format based on the
+  file extension)
+- OpenCV can show a window (imshow) and wait to dismiss it (waitKey).
+  It can also accept mouse input and show a trackbar.
+- OpenCV provides a portable video processing API, including video capture
+  from input devices (!).
+    - You can read a frame out and append it to a NumPy array to get a series
+      of images to work with.
+
+#### Tracking
+*Tracking* is following objects through a sequence of images (AKA video).
+
+*Optical flow* (aka "optic flow", because English) is the image motion of
+objects across two consecutive images. You basically layer a translation vector
+atop each pixel in image 1 that shows where it went in image 2.
+
+This works by assuming:
+
+- Brightness constancy
+- Temporal regularity: The consecutive images are "close enough" in time that
+  differentials work
+- Spatial consistency: Neighboring pixels have similar motion
+
+This mostly holds for small motions and short time steps. You can then
+say that a pixel at (x, y, t) is the same as one at (x + dx, y + dy, t + dt)
+and differentiate to get the optical flow equation, which gives you a motion
+vector at each point.
+
+There are several different algorithms that OpenCV has for this:
+
+- Old and not even available in the modern Python API under `cv2`:
+  - Block Matching
+  - Horn-Schunk, from 1981
+- Pyramidal Lucas-Kanade, also from 1981
+  - Good at following interest points like corners.
+  - Next section gives a more in-depth example.
+- Farneback, from 2003
+  - Good at getting dense flow fields. AKA "imagine every pixel is an interest
+    point".
+  - Easy to deploy, easy to visualize.
+
+#### Lucas-Kanade Tracking
+There's actually a function called `goodFeaturesToTrack` that implements an
+algorithm from the paper of the same name by Shi & Tomasi published in 1994.
+(Corners are points with two large eigenvalues in the Harris structure tensor,
+where both are above a threshold.)
+
+If you stack all the optic flow equations together and work with the
+good-features-to-track points, you get a system of
+equations that actually has enough constraints on it and nice properties by
+construction to be solveable.
+
+The pyramidal bit is used as a hack to handle larger displacements - you run
+the algorithm at coarse-to-fine versions of the image.
+
+**NOTE: If you see "Pyr" in an OpenCV function, it's short for Pyramid or
+Pyramidal.**
+
+The example finds the features, refines them for subpixel positioning, then
+tracks them using LK from frame to frame and visualizes them using matplotlib
+by drawing where they moved over the frame. It handles removing dead (occluded)
+features using the `status` return from the track call, which says if the
+feature was found or not in the nextImg.
+
+#### Grab Bag
+- Inpainting: Reconstruction of lost or deteriorated parts of images.
+  Think red-eye correction and object removal, as well as fixing corrupt
+  bits. The example has you you mark corrupt image bits by drawing on the
+  image, and then it tries to rebuild them.
+- Watershed segmentation: "Flow" fill regions from seed pixels. Done on
+  gradient image, so that edges become ridges. Example has you draw seed
+  lines on the image, and then it floods it.
+- Line detection: Uses the Hough transform. Finds lines, but they're infinite.
+  You can use edge detection to try to truncate them. Or now there's a
+  probabilistic Hough transform function that dumps line endpoints rather than
+  (rho, theta) infinite lines the way the plain Hough transform does.
+    - The
+      [OpenCV docs](http://docs.opencv.org/2.4.13.2/modules/imgproc/doc/feature_detection.html#houghlines)
+      point you to this
+      [description of the Hough transform](http://homepages.inf.ed.ac.uk/rbf/HIPR2/hough.htm)
+      at the [Hypermedia Image Processing Reference](http://homepages.inf.ed.ac.uk/rbf/HIPR2/hipr_top.htm),
+      which retains the feel of the Web of the 1990s:
+
+      > If you are viewing the hypermedia version of HIPR, then what you are
+      > seeing now is the Welcome Page of HIPR. You are viewing it with the aid
+      > of a piece of software called a hypermedia browser, probably one called
+      > **Netscape** although others can be used just as easily.
+
+*And that's it - the end! OpenCV looks like a very good toolkit to have on
+hand, especially when Python isn't available. If you have Python in hand,
+though, you probably want to give [SimpleCV](http://simplecv.org/) a look! It's
+like the higher-level "just pick the right algorithm for me already" version of
+OpenCV.
+Though [SimpleCV appears to have petered out in April 2015 based on GitHub](https://github.com/sightmachine/SimpleCV).
+[tpltnt's SimpleCV fork looks lively, though.](https://github.com/tpltnt/SimpleCV)*
