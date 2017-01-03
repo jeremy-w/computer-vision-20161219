@@ -86,6 +86,8 @@ Useful resources I didn't know about before.
       telling, I think!
 - [Matplotlib Docs](http://matplotlib.org/contents.html)
 - [Hypermedia Image Processing Reference](http://homepages.inf.ed.ac.uk/rbf/HIPR2/hipr_top.htm)
+- [PCV's Website with Sample Data](http://programmingcomputervision.com/)
+- [Errata for PCV](http://www.oreilly.com/catalog/errata.csp?isbn=0636920022923)
 
 
 ## 2016-12-19 (Monday)
